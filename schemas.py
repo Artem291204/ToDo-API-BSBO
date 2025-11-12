@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 
 
 # --- Базовая схема задачи ---
@@ -20,9 +20,9 @@ class TaskBase(BaseModel):
         ...,
         description="Важность задачи"
     )
-    is_urgent: bool = Field(
-        ...,
-        description="Срочность задачи"
+    deadline_at: Optional[datetime] = Field(
+        None,
+        description="Плановый дедлайн задачи"
     )
 
 
@@ -48,9 +48,9 @@ class TaskUpdate(BaseModel):
         None,
         description="Новая важность"
     )
-    is_urgent: Optional[bool] = Field(
+    deadline_at: Optional[datetime] = Field(
         None,
-        description="Новая срочность"
+        description="Новый дедлайн"
     )
     completed: Optional[bool] = Field(
         None,
@@ -65,6 +65,10 @@ class TaskResponse(TaskBase):
         description="Уникальный ID задачи",
         examples=[1]
     )
+    is_urgent: Optional[bool] = Field(
+    default=False,
+    description="Срочность задачи (вычисляемое поле)"
+)
     quadrant: str = Field(
         ...,
         description="Квадрант матрицы Эйзенхауэра (Q1, Q2, Q3, Q4)"
@@ -77,6 +81,39 @@ class TaskResponse(TaskBase):
         ...,
         description="Дата создания"
     )
+    completed_at: Optional[datetime] = Field(
+        None,
+        description="Дата завершения"
+    )
+    days_until_deadline: Optional[int] = Field(
+        None,
+        description="Количество дней до дедлайна"
+    )
+
+    @validator('days_until_deadline', pre=True, always=True)
+    def calculate_days_until_deadline(cls, v, values):
+        if 'deadline_at' in values and values['deadline_at']:
+            deadline = values['deadline_at']
+            if isinstance(deadline, datetime):
+                deadline_date = deadline.date()
+            else:
+                deadline_date = deadline
+            today = date.today()
+            delta = deadline_date - today
+            return delta.days
+        return None
 
     class Config:
         from_attributes = True
+
+
+# --- Схема для статистики по дедлайнам ---
+class DeadlineStatsResponse(BaseModel):
+    title: str
+    description: Optional[str]
+    created_at: datetime
+    days_until_deadline: Optional[int]
+
+    class Config:
+        from_attributes = True
+
